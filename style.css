@@ -1,0 +1,295 @@
+/* Checkup Buddy (v2) — Modern Clinical Healthcare Theme & Indic Typography */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Gurmukhi:wght@400;500;600;700&family=Noto+Sans+Oriya:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap');
+
+/* Root Healthcare Design Tokens */
+:root {
+    --cb-primary: #0D9488;         /* Clinical Teal */
+    --cb-primary-dark: #0F766E;    /* Deep Teal */
+    --cb-primary-light: #CCFBF1;   /* Soft Teal Tint */
+    --cb-navy: #1E3A8A;            /* Hospital Navy */
+    --cb-navy-dark: #0F172A;       /* Slate Navy */
+    --cb-accent: #3B82F6;          /* Medical Blue */
+    --cb-success: #10B981;         /* Health Emerald */
+    --cb-warning: #F59E0B;         /* Amber Alert */
+    --cb-danger: #EF4444;          /* Critical Coral */
+    --cb-bg: #F8FAFC;              /* Clean Medical Canvas */
+    --cb-surface: #FFFFFF;         /* White Card Surface */
+    --cb-border: #E2E8F0;          /* Soft Border */
+    --cb-text-main: #0F172A;       /* Primary Typography */
+    --cb-text-muted: #64748B;      /* Secondary Label */
+    --cb-radius: 12px;
+    --cb-radius-lg: 16px;
+    --cb-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+    --cb-shadow-md: 0 4px 16px -2px rgba(15, 23, 42, 0.08);
+    --cb-shadow-lg: 0 10px 25px -3px rgba(13, 148, 136, 0.12);
+}
+
+/* Base Universal Typography & Indic Script Support */
+html, body, [class*="css"], .stApp {
+    font-family: 'Plus Jakarta Sans', 'Inter', 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Noto Sans Bengali', 'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Oriya', 'Noto Sans Arabic', 'Nirmala UI', system-ui, sans-serif !important;
+    background-color: var(--cb-bg);
+    color: var(--cb-text-main);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle Clinical Ambient Background */
+.stApp {
+    background: radial-gradient(circle at 10% 20%, rgba(204, 251, 241, 0.35) 0%, rgba(248, 250, 252, 0.95) 45%, rgba(239, 246, 255, 0.4) 100%);
+    background-attachment: fixed;
+}
+
+/* Top Streamlit Header */
+header[data-testid="stHeader"] {
+    background: rgba(255, 255, 255, 0.88) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--cb-border);
+}
+
+/* Clean Healthcare Sidebar */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%) !important;
+    border-right: 1px solid var(--cb-border) !important;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.02);
+}
+
+section[data-testid="stSidebar"] div.block-container {
+    padding-top: 1.8rem;
+    padding-bottom: 2rem;
+}
+
+/* Primary Action Buttons */
+div.stButton > button:first-child[kind="primary"],
+div.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #0D9488 0%, #1E3A8A 100%) !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: var(--cb-radius) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.2px;
+    padding: 0.65rem 1.4rem !important;
+    box-shadow: 0 4px 14px rgba(13, 148, 136, 0.25) !important;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+div.stButton > button:first-child[kind="primary"]:hover,
+div.stButton > button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #0F766E 0%, #1E40AF 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(13, 148, 136, 0.38) !important;
+}
+
+div.stButton > button:first-child[kind="primary"]:active,
+div.stButton > button[kind="primary"]:active {
+    transform: translateY(0px) !important;
+    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.2) !important;
+}
+
+/* Secondary & Standard Buttons */
+div.stButton > button:first-child[kind="secondary"],
+div.stButton > button:not([kind="primary"]) {
+    background: #FFFFFF !important;
+    color: var(--cb-navy) !important;
+    border: 1px solid var(--cb-border) !important;
+    border-radius: var(--cb-radius) !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 1.2rem !important;
+    box-shadow: var(--cb-shadow-sm) !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+div.stButton > button:first-child[kind="secondary"]:hover,
+div.stButton > button:not([kind="primary"]):hover {
+    background: var(--cb-primary-light) !important;
+    border-color: var(--cb-primary) !important;
+    color: var(--cb-primary-dark) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Download Buttons */
+div.stDownloadButton > button {
+    background: linear-gradient(135deg, #0F766E 0%, #0D9488 100%) !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: var(--cb-radius) !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 1.3rem !important;
+    box-shadow: 0 3px 12px rgba(15, 118, 110, 0.25) !important;
+    transition: all 0.2s ease !important;
+}
+
+div.stDownloadButton > button:hover {
+    background: linear-gradient(135deg, #115E59 0%, #0F766E 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 18px rgba(15, 118, 110, 0.35) !important;
+}
+
+/* Form Container Cards */
+[data-testid="stForm"] {
+    background: #FFFFFF !important;
+    border: 1px solid var(--cb-border) !important;
+    border-radius: var(--cb-radius-lg) !important;
+    padding: 1.8rem !important;
+    box-shadow: var(--cb-shadow-md) !important;
+    transition: border-color 0.2s ease;
+}
+
+[data-testid="stForm"]:hover {
+    border-color: #CBD5E1 !important;
+}
+
+/* Inputs, Number Inputs, and Text Areas */
+div[data-baseweb="input"] > div,
+div[data-baseweb="select"] > div {
+    border-radius: 9px !important;
+    border-color: var(--cb-border) !important;
+    background-color: #FFFFFF !important;
+    transition: all 0.2s ease !important;
+}
+
+div[data-baseweb="input"] > div:focus-within,
+div[data-baseweb="select"] > div:focus-within {
+    border-color: var(--cb-primary) !important;
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.18) !important;
+}
+
+/* Sidebar Radio Buttons Styled as Clean Modern Pills */
+div[role="radiogroup"] > label {
+    padding: 8px 16px !important;
+    background: #F1F5F9 !important;
+    border: 1px solid transparent !important;
+    border-radius: 10px !important;
+    margin-bottom: 6px !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    cursor: pointer !important;
+}
+
+div[role="radiogroup"] > label:hover {
+    background: #E2E8F0 !important;
+    transform: translateX(2px) !important;
+}
+
+div[role="radiogroup"] > label[data-checked="true"] {
+    background: #E0F2FE !important;
+    border-color: #7DD3FC !important;
+    color: #0369A1 !important;
+    font-weight: 700 !important;
+}
+
+/* Clinical Metric Displays */
+div[data-testid="stMetric"] {
+    background: #FFFFFF !important;
+    border: 1px solid var(--cb-border) !important;
+    border-radius: var(--cb-radius) !important;
+    padding: 1.2rem !important;
+    box-shadow: var(--cb-shadow-sm) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+div[data-testid="stMetric"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: var(--cb-shadow-md) !important;
+    border-color: var(--cb-primary-light) !important;
+}
+
+div[data-testid="stMetricLabel"] {
+    color: var(--cb-text-muted) !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+}
+
+div[data-testid="stMetricValue"] {
+    color: var(--cb-navy) !important;
+    font-weight: 800 !important;
+}
+
+/* Custom Clinical Card Utility Classes */
+.clinical-card {
+    background: #FFFFFF;
+    border: 1px solid var(--cb-border);
+    border-radius: var(--cb-radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1.2rem;
+    box-shadow: var(--cb-shadow-md);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.clinical-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--cb-shadow-lg);
+    border-color: var(--cb-primary);
+}
+
+.disease-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.badge-low-risk {
+    background-color: #F0FDF4;
+    color: #166534;
+    border: 1px solid #BBF7D0;
+}
+
+.badge-high-risk {
+    background-color: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FECACA;
+}
+
+.badge-moderate-risk {
+    background-color: #FFFBEB;
+    color: #B45309;
+    border: 1px solid #FDE68A;
+}
+
+/* Clinical Language Bar Floating Wrapper */
+.cb-lang-bar {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--cb-border);
+    border-radius: 12px;
+    padding: 0.6rem 1rem;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: var(--cb-shadow-sm);
+}
+
+/* Streamlit Tabs Navigation */
+button[data-baseweb="tab"] {
+    font-weight: 600 !important;
+    color: var(--cb-text-muted) !important;
+    border-radius: 8px 8px 0 0 !important;
+    padding: 0.6rem 1.2rem !important;
+    transition: all 0.2s ease !important;
+}
+
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: var(--cb-primary-dark) !important;
+    border-bottom-color: var(--cb-primary) !important;
+    font-weight: 700 !important;
+}
+
+/* Mobile & Tablet Responsiveness */
+@media (max-width: 768px) {
+    div.block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+    
+    [data-testid="stForm"] {
+        padding: 1.2rem !important;
+    }
+    
+    div.stButton > button {
+        width: 100% !important;
+    }
+}

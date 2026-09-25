@@ -1,0 +1,10 @@
+# Checkup Buddy — Production Dependencies for Streamlit Community Cloud
+streamlit>=1.35.0
+scikit-learn>=1.4.0
+pandas>=2.2.0
+numpy>=1.26.0
+Pillow>=10.0.0
+fpdf2>=2.7.9
+python-dotenv>=1.0.0
+twilio>=8.12.0
+ucimlrepo>=0.0.7
