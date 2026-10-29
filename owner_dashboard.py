@@ -13,6 +13,7 @@ import database
 import pdf_generator
 import recommendations
 import i18n
+import otp_service
 
 
 def render_owner_dashboard():
@@ -44,10 +45,11 @@ def render_owner_dashboard():
         </div>
     """, unsafe_allow_html=True)
 
-    tab_overview, tab_patients, tab_audit = st.tabs([
+    tab_overview, tab_patients, tab_audit, tab_smtp = st.tabs([
         i18n.t("tab_overview"),
         i18n.t("tab_patients"),
-        i18n.t("tab_audits")
+        i18n.t("tab_audits"),
+        "📧 SMTP Diagnostic"
     ])
 
     # ---------------- TAB 1: AGGREGATE HEALTH ANALYTICS ----------------
@@ -236,3 +238,71 @@ def render_owner_dashboard():
             st.dataframe(df_logs, use_container_width=True, hide_index=True)
         else:
             st.info("No administrative record inspections logged yet.")
+
+    # ---------------- TAB 4: SMTP DIAGNOSTIC ----------------
+    with tab_smtp:
+        st.markdown("#### Email / SMTP Configuration Diagnostic")
+        st.caption(
+            "Use this panel to verify that the email delivery system is correctly configured. "
+            "This tool is restricted to authenticated owners only. No credentials or OTPs are displayed."
+        )
+
+        # Credential presence summary (no values shown)
+        host, port, user, pwd = otp_service.get_smtp_credentials()
+        clean_pwd = pwd.replace(" ", "").strip() if pwd else ""
+        creds_ok = bool(user and clean_pwd)
+
+        col_a, col_b, col_c, col_d = st.columns(4)
+        col_a.metric("SMTP_HOST", "✅ Set" if host else "❌ Missing")
+        col_b.metric("SMTP_PORT", f"✅ {port}" if port else "❌ Missing")
+        col_c.metric("SMTP_USER", "✅ Set" if user else "❌ Missing")
+        col_d.metric("SMTP_APP_PASSWORD", "✅ Set" if clean_pwd else "❌ Missing")
+
+        if not creds_ok:
+            st.error(
+                "**SMTP credentials are not configured.** "
+                "Set `SMTP_USER` and `SMTP_APP_PASSWORD` as Environment Variables in the "
+                "Render dashboard (not in render.yaml). For Gmail, use a 16-character App Password."
+            )
+        else:
+            st.success(f"Credentials present. Sender: `{user}`")
+
+        st.markdown("---")
+        st.markdown("##### Send a Live Test Email")
+        st.info(
+            "Enter any email address to send a live SMTP test. "
+            "This sends a plain diagnostic message — no OTP, no patient data."
+        )
+
+        with st.form("smtp_diag_form"):
+            test_addr = st.text_input(
+                "Test recipient email address",
+                placeholder="yourname@gmail.com",
+                help="Enter the address you want to receive the test message."
+            ).strip()
+            run_diag = st.form_submit_button("Run SMTP Diagnostic", type="primary")
+
+        if run_diag:
+            if not test_addr or "@" not in test_addr:
+                st.error("Enter a valid email address.")
+            else:
+                with st.spinner("Connecting to SMTP server…"):
+                    diag = otp_service.run_smtp_diagnostic(test_addr)
+
+                st.markdown("##### Diagnostic Result")
+                steps = {
+                    "Credentials present": diag["credentials_present"],
+                    "SMTP server connected": diag["smtp_connected"],
+                    "Authentication succeeded": diag["smtp_authenticated"],
+                    "Message accepted by server": diag["message_accepted"],
+                }
+                for label, ok in steps.items():
+                    if ok:
+                        st.success(f"✅ {label}")
+                    else:
+                        st.error(f"❌ {label}")
+                        break
+
+                st.markdown(f"**Summary:** {diag['summary']}")
+                if diag.get("error"):
+                    st.code(diag["error"], language=None)

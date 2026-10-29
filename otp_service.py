@@ -225,18 +225,22 @@ def dispatch_single_otp(identifier: str, channel: str) -> tuple[bool, str]:
     Returns (success: bool, message: str).
 
     SECURITY: The OTP code is NEVER returned to the caller or displayed in the
-    browser/UI. If SMTP/Twilio is not configured, the code is printed only to
-    the server console/terminal for developer debugging.
+    browser/UI. On SMTP failure, the function returns False with a clear error
+    so the user knows delivery did not succeed.
     """
     can_resend, remaining = can_resend_otp(identifier, channel)
     if not can_resend:
         return False, f"Please wait {remaining} seconds before requesting a new code."
 
+    # Validate identifier for email channel before generating OTP
+    if channel == "email" and ("@" not in identifier or "." not in identifier.split("@")[-1]):
+        return False, "Invalid email address. Please check the address and try again."
+
     otp_code = generate_6digit_otp()
     token_hash = hash_otp(otp_code)
     expires_at = (datetime.now() + timedelta(minutes=OTP_EXPIRY_MINUTES)).isoformat()
 
-    # Store hashed OTP in database
+    # Store hashed OTP in database BEFORE sending (so it exists even if send has delay)
     database.store_otp_token(identifier, channel, token_hash, expires_at)
 
     dispatched = False
@@ -246,19 +250,27 @@ def dispatch_single_otp(identifier: str, channel: str) -> tuple[bool, str]:
         dispatched = _send_sms_twilio(identifier, otp_code)
 
     if not dispatched:
-        # Dev-mode fallback: OTP printed ONLY to the server terminal — never to the browser UI.
-        print("\n" + "=" * 60)
-        print(f"[DEV CONSOLE LOG] Verification Code for {channel.upper()}: {identifier}")
-        print(f"[DEV CONSOLE LOG] OTP: {otp_code} (Expires in {OTP_EXPIRY_MINUTES} mins)")
-        print("[DEV CONSOLE LOG] Configure SMTP credentials in .streamlit/secrets.toml to enable email delivery.")
-        print("=" * 60 + "\n")
-        # Still return success=True so the user sees the generic inbox-check message.
-        # The actual code is visible in the server terminal only.
-        return True, (
-            "Verification code sent. Please check your inbox — "
-            "if you don't see it within a minute, check your Spam / Junk folder. "
-            "The code expires in 5 minutes."
-        )
+        # Remove the stored token since delivery failed — don't leave a phantom token
+        try:
+            rec = database.get_active_otp_token(identifier, channel)
+            if rec:
+                database.delete_otp_token(rec["id"])
+        except Exception:
+            pass
+
+        # Log safe diagnostic to server console (no OTP value in production logs)
+        print(f"[OTP Service] Delivery FAILED for {channel} channel. Identifier domain: "
+              f"{'@'+identifier.split('@')[-1] if '@' in identifier else '[non-email]'}")
+        print("[OTP Service] Check SMTP_USER and SMTP_APP_PASSWORD environment variables in Render dashboard.")
+
+        if channel == "email":
+            return False, (
+                "Could not send the verification email. "
+                "Please check that your email address is correct and try again. "
+                "If the problem persists, contact support."
+            )
+        else:
+            return False, "Could not send the SMS verification code. Please try again later."
 
     return True, (
         "Verification code sent to your email. Please check your inbox — "
@@ -397,3 +409,111 @@ def send_diagnosis_report_email(
     except Exception as e:
         print(f"[Diagnostic Email] Failed to dispatch report email to {to_email}: {e}")
         return False, f"Email delivery failed: {e}"
+
+
+
+def run_smtp_diagnostic(test_recipient: str) -> dict:
+    """
+    Owner-only SMTP diagnostic. Checks credential presence, attempts a live
+    SMTP connection and sends a test message to the supplied address.
+
+    SECURITY:
+    - Never call this from patient-facing code.
+    - Never log SMTP credentials or OTP values.
+    - Only sends to an address explicitly supplied by an authenticated owner.
+
+    Returns a dict with keys:
+      credentials_present (bool), smtp_connected (bool),
+      smtp_authenticated (bool), message_accepted (bool),
+      error (str|None), summary (str)
+    """
+    result = {
+        "credentials_present": False,
+        "smtp_connected": False,
+        "smtp_authenticated": False,
+        "message_accepted": False,
+        "error": None,
+        "summary": "",
+    }
+
+    if not test_recipient or "@" not in test_recipient:
+        result["error"] = "Invalid test recipient address."
+        result["summary"] = "Diagnostic skipped: invalid recipient."
+        return result
+
+    host, port, user, app_password = get_smtp_credentials()
+    clean_password = app_password.replace(" ", "").strip() if app_password else ""
+
+    if not user or not clean_password:
+        result["error"] = "SMTP_USER or SMTP_APP_PASSWORD is missing from environment / secrets."
+        result["summary"] = (
+            "CONFIGURATION ERROR: Set SMTP_USER and SMTP_APP_PASSWORD in the "
+            "Render dashboard under Environment Variables."
+        )
+        print("[SMTP Diagnostic] Credentials missing — SMTP_USER or SMTP_APP_PASSWORD not configured.")
+        return result
+
+    result["credentials_present"] = True
+
+    try:
+        server = smtplib.SMTP(host, port, timeout=15)
+        server.ehlo()
+        result["smtp_connected"] = True
+    except Exception as e:
+        result["error"] = f"SMTP connection failed: {type(e).__name__}"
+        result["summary"] = f"Cannot reach {host}:{port}. Check SMTP_HOST and SMTP_PORT."
+        print(f"[SMTP Diagnostic] Connection error: {type(e).__name__}")
+        return result
+
+    try:
+        server.starttls()
+        server.ehlo()
+        server.login(user, clean_password)
+        result["smtp_authenticated"] = True
+    except smtplib.SMTPAuthenticationError:
+        result["error"] = "SMTP authentication failed."
+        result["summary"] = (
+            "Authentication error: SMTP_USER or SMTP_APP_PASSWORD is wrong. "
+            "For Gmail, use a 16-character App Password (not your account password). "
+            "Enable 2FA and create an App Password at myaccount.google.com/apppasswords."
+        )
+        print("[SMTP Diagnostic] Authentication failed — wrong credentials.")
+        server.quit()
+        return result
+    except Exception as e:
+        result["error"] = f"TLS/Auth error: {type(e).__name__}"
+        result["summary"] = f"TLS handshake or login failed: {type(e).__name__}"
+        print(f"[SMTP Diagnostic] TLS/Auth error: {type(e).__name__}")
+        return result
+
+    try:
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        msg = MIMEMultipart("alternative")
+        msg["From"] = user
+        msg["To"] = test_recipient
+        msg["Subject"] = "Checkup Buddy — SMTP Diagnostic Test"
+        msg.attach(MIMEText(
+            "This is an automated SMTP diagnostic test from Checkup Buddy.\n"
+            "If you received this, email delivery is working correctly.\n\n"
+            "-- Checkup Buddy Admin Diagnostic",
+            "plain", "utf-8"
+        ))
+        server.sendmail(user, [test_recipient], msg.as_string())
+        server.quit()
+        result["message_accepted"] = True
+        result["summary"] = (
+            f"SUCCESS: SMTP server accepted the test message for delivery to {test_recipient}. "
+            "Check that inbox (and spam folder) to confirm end-to-end delivery."
+        )
+        print(f"[SMTP Diagnostic] Test message accepted for {test_recipient}.")
+    except smtplib.SMTPRecipientsRefused:
+        result["error"] = "Recipient address rejected by SMTP server."
+        result["summary"] = f"The address {test_recipient} was rejected. Check it is a valid, reachable address."
+        print(f"[SMTP Diagnostic] Recipient refused: {test_recipient}")
+    except Exception as e:
+        result["error"] = f"Send failed: {type(e).__name__}"
+        result["summary"] = f"Message send failed: {type(e).__name__}"
+        print(f"[SMTP Diagnostic] Send error: {type(e).__name__}")
+
+    return result
