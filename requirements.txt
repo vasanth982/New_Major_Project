@@ -1,4 +1,4 @@
-# Checkup Buddy — Production Dependencies for Streamlit Community Cloud
+# Checkup Buddy — Production Dependencies for Render / Streamlit Cloud
 streamlit>=1.35.0
 scikit-learn>=1.4.0
 pandas>=2.2.0
