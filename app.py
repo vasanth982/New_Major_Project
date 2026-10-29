@@ -26,6 +26,7 @@ st.set_page_config(
 # Core imports
 import database
 import auth
+import otp_service
 import profile
 import vitals_intake
 import owner_dashboard
@@ -41,6 +42,10 @@ database.init_db()
 
 # Auto-seed owner from environment if configured
 auth.auto_seed_owner_from_env()
+
+# Log SMTP configuration state at startup so Render logs immediately show
+# whether email credentials are configured correctly.
+otp_service._log_smtp_config_state()
 
 
 def inject_custom_styles():

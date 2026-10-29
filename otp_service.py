@@ -57,75 +57,124 @@ def can_resend_otp(identifier: str, channel: str) -> tuple[bool, int]:
 
 def _get_secret(key: str, default: str = "") -> str:
     """
-    Safely retrieves a configuration key with priority:
-    1. Streamlit secrets: st.secrets[key]
-    2. Environment variables: os.getenv(key)
-    3. Default value
-    Never raises an exception if secrets are absent or Streamlit is uninitialized.
+    Safely retrieves a configuration key with explicit two-path resolution:
+
+    Path A - Streamlit secrets (local dev / Streamlit Community Cloud):
+        Reads from .streamlit/secrets.toml when present.
+        Uses st.secrets.get() to avoid raising on missing keys.
+
+    Path B - OS environment variables (Render, Docker, CI/CD, production):
+        Reads from os.environ directly. This is the ONLY path that works on
+        Render when secrets.toml is not deployed (which it should never be).
+
+    On Render:
+        - secrets.toml is NOT deployed (correctly excluded via .gitignore).
+        - st.secrets will be an empty SecretDict - Path A finds nothing.
+        - SMTP_USER, SMTP_APP_PASSWORD must be set as Environment Variables
+          in the Render dashboard. Path B reads them via os.environ.
+        - After adding env vars in the Render dashboard, trigger a
+          Manual Deploy (not just a restart) for changes to take effect.
+
+    Never raises. Never logs credential values.
     """
+    # -- Path A: Streamlit secrets (local dev / Streamlit Cloud) --------------
     try:
         import streamlit as st
-        if key in st.secrets:
-            val = st.secrets[key]
-            if val is not None and str(val).strip():
-                return str(val).strip()
+        # Use .get() - never raises on missing keys, never raises if secrets
+        # file is absent (returns None in that case).
+        val = st.secrets.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
     except Exception:
+        # st.secrets unavailable or not initialized - fall through to env vars.
         pass
 
-    val = os.getenv(key)
-    if val is not None and str(val).strip():
-        return str(val).strip()
+    # -- Path B: OS environment variables (Render, Docker, production) ---------
+    # Use os.environ.get() directly - equivalent to os.getenv() but explicit.
+    val = os.environ.get(key, "").strip()
+    if val:
+        return val
 
     return default
 
-# Module-level defaults
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = ""
-SMTP_APP_PASSWORD = ""
+
+def _log_smtp_config_state() -> None:
+    """
+    Logs the SMTP configuration state at startup / first call.
+    Reports only whether each required key is PRESENT or MISSING.
+    Never logs credential values, passwords, or OTPs.
+    Call once at app startup to make Render logs immediately useful.
+    """
+    host = _get_secret("SMTP_HOST", "")
+    port = _get_secret("SMTP_PORT", "")
+    user = _get_secret("SMTP_USER", "")
+    pwd  = _get_secret("SMTP_APP_PASSWORD", "")
+    clean_pwd = pwd.replace(" ", "") if pwd else ""
+
+    # Determine where each key came from (secrets file vs env var)
+    def _source(key: str) -> str:
+        try:
+            import streamlit as st
+            if st.secrets.get(key):
+                return "st.secrets"
+        except Exception:
+            pass
+        return "os.environ" if os.environ.get(key, "").strip() else "MISSING"
+
+    print("[SMTP Config] -- Startup credential check --------------------------")
+    print(f"[SMTP Config] SMTP_HOST         : {'SET (' + _source('SMTP_HOST') + ')' if host else 'MISSING - defaulting to smtp.gmail.com'}")
+    print(f"[SMTP Config] SMTP_PORT         : {'SET (' + _source('SMTP_PORT') + ') = ' + port if port else 'MISSING - defaulting to 587'}")
+    print(f"[SMTP Config] SMTP_USER         : {'SET (' + _source('SMTP_USER') + ')' if user else 'MISSING - email OTP will fail'}")
+    print(f"[SMTP Config] SMTP_APP_PASSWORD : {'SET (' + _source('SMTP_APP_PASSWORD') + ') length=' + str(len(clean_pwd)) if clean_pwd else 'MISSING - email OTP will fail'}")
+    if not user or not clean_pwd:
+        print("[SMTP Config] ACTION REQUIRED: Add SMTP_USER and SMTP_APP_PASSWORD as")
+        print("[SMTP Config]   Environment Variables in Render dashboard, then trigger")
+        print("[SMTP Config]   a Manual Deploy (not just a service restart).")
+    else:
+        print("[SMTP Config] Credentials present. Email OTP delivery enabled.")
+    print("[SMTP Config] ----------------------------------------------------")
+
+
+# Module-level defaults (used only as fallback in get_smtp_credentials)
+_SMTP_HOST_DEFAULT = "smtp.gmail.com"
+_SMTP_PORT_DEFAULT = 587
 
 
 def get_smtp_credentials() -> tuple[str, int, str, str]:
     """Returns (host, port, user, app_password) dynamically resolved from secrets or env."""
-    host = _get_secret("SMTP_HOST", "smtp.gmail.com")
+    host = _get_secret("SMTP_HOST", _SMTP_HOST_DEFAULT)
     try:
-        port = int(_get_secret("SMTP_PORT", "587"))
+        port = int(_get_secret("SMTP_PORT", str(_SMTP_PORT_DEFAULT)))
     except Exception:
-        port = 587
+        port = _SMTP_PORT_DEFAULT
     user = _get_secret("SMTP_USER", "")
-    pwd = _get_secret("SMTP_APP_PASSWORD", "")
+    pwd  = _get_secret("SMTP_APP_PASSWORD", "")
     return host, port, user, pwd
 
 
 def _send_email_smtp(to_email: str, otp_code: str) -> bool:
-    """Sends OTP via Gmail SMTP using Streamlit secrets, env vars, or dev fallback."""
-    smtp_user = _get_secret("SMTP_USER", SMTP_USER)
-    smtp_app_password = _get_secret("SMTP_APP_PASSWORD", SMTP_APP_PASSWORD)
-    smtp_host = _get_secret("SMTP_HOST", SMTP_HOST)
-    try:
-        smtp_port = int(_get_secret("SMTP_PORT", str(SMTP_PORT)) or 587)
-    except Exception:
-        smtp_port = 587
+    """Sends OTP via Gmail SMTP. Returns True only when the SMTP server accepts the message."""
+    host, port, smtp_user, smtp_app_password = get_smtp_credentials()
 
-    # ── Credential presence diagnostic (values are NEVER logged) ──────────────
-    print(f"[OTP Service] SMTP_HOST loaded: {bool(smtp_host)}, SMTP_PORT={smtp_port}")
-    print(f"[OTP Service] SMTP_USER present: {bool(smtp_user)}, SMTP_APP_PASSWORD present: {bool(smtp_app_password)}")
-
-    # Strip spaces — Google App Passwords are shown with spaces but must be sent without
+    # Strip spaces - Google App Passwords are shown with spaces but must be sent without
     clean_password = smtp_app_password.replace(" ", "").strip() if smtp_app_password else ""
-    if (
-        not smtp_user
-        or not clean_password
-        or clean_password in ("PASTEYOUR16CHARAPPPASSWORDHERE", "your_16_char_app_password")
+
+    # -- Safe credential-presence diagnostic (no values logged) ----------------
+    print(f"[OTP SMTP] host={host or 'MISSING'} port={port}")
+    print(f"[OTP SMTP] SMTP_USER={'SET' if smtp_user else 'MISSING'} "
+          f"SMTP_APP_PASSWORD={'SET(len=' + str(len(clean_password)) + ')' if clean_password else 'MISSING'}")
+
+    if not smtp_user or not clean_password or clean_password in (
+        "PASTEYOUR16CHARAPPPASSWORDHERE", "your_16_char_app_password"
     ):
-        print("[OTP Service] SMTP credentials not configured in st.secrets or environment. Falling back to dev console logging.")
+        print("[OTP SMTP] CREDENTIALS MISSING -- cannot send OTP email.")
+        print("[OTP SMTP] Fix: Set SMTP_USER and SMTP_APP_PASSWORD in Render dashboard")
+        print("[OTP SMTP]      under Environment Variables, then trigger a Manual Deploy.")
         return False
 
     try:
-        # ── Build a plain-text + HTML multipart/alternative email ─────────────
-        # Using multipart/alternative with both plain and HTML reduces spam scoring.
         outer = MIMEMultipart("alternative")
-        outer["From"] = smtp_user          # plain address — avoids display-name encoding issues
+        outer["From"] = smtp_user
         outer["To"] = to_email
         outer["Reply-To"] = smtp_user
         outer["Subject"] = "Your Checkup Buddy Verification Code"
@@ -148,9 +197,7 @@ def _send_email_smtp(to_email: str, otp_code: str) -> bool:
                 padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
       <h2 style="color:#0D9488;margin-top:0;">Checkup Buddy</h2>
       <p style="font-size:15px;color:#333;">Hello,</p>
-      <p style="font-size:15px;color:#333;">
-        Your one-time verification code is:
-      </p>
+      <p style="font-size:15px;color:#333;">Your one-time verification code is:</p>
       <div style="text-align:center;margin:24px 0;">
         <span style="font-size:36px;font-weight:bold;letter-spacing:10px;
                      color:#0D9488;background:#f0fdf4;padding:14px 28px;
@@ -173,26 +220,32 @@ def _send_email_smtp(to_email: str, otp_code: str) -> bool:
         outer.attach(MIMEText(plain_body, "plain", "utf-8"))
         outer.attach(MIMEText(html_body, "html", "utf-8"))
 
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=15)
+        server = smtplib.SMTP(host, port, timeout=15)
         server.ehlo()
         server.starttls()
         server.ehlo()
         server.login(smtp_user, clean_password)
         server.sendmail(smtp_user, [to_email], outer.as_string())
         server.quit()
-        print(f"[OTP Service] Email dispatched successfully to {to_email}")
+        print(f"[OTP SMTP] Delivered successfully to domain: @{to_email.split('@')[-1]}")
         return True
-    except smtplib.SMTPAuthenticationError as e:
-        print(f"[OTP Service] SMTP auth failure (wrong user/app-password?): {e}")
+
+    except smtplib.SMTPAuthenticationError:
+        print("[OTP SMTP] AUTH FAILED -- wrong SMTP_USER or SMTP_APP_PASSWORD.")
+        print("[OTP SMTP] For Gmail: use a 16-char App Password (not your account password).")
+        print("[OTP SMTP] Create one at: myaccount.google.com/apppasswords")
         return False
     except smtplib.SMTPConnectError as e:
-        print(f"[OTP Service] SMTP connection failure (host/port issue?): {e}")
+        print(f"[OTP SMTP] CONNECTION FAILED -- cannot reach {host}:{port}. Error: {type(e).__name__}")
+        return False
+    except smtplib.SMTPRecipientsRefused:
+        print(f"[OTP SMTP] RECIPIENT REFUSED -- address domain: @{to_email.split('@')[-1]}")
         return False
     except smtplib.SMTPException as e:
-        print(f"[OTP Service] SMTP protocol error: {type(e).__name__}: {e}")
+        print(f"[OTP SMTP] SMTP ERROR -- {type(e).__name__}")
         return False
     except Exception as e:
-        print(f"[OTP Service] Unexpected SMTP dispatch error: {type(e).__name__}: {e}")
+        print(f"[OTP SMTP] UNEXPECTED ERROR -- {type(e).__name__}")
         return False
 
 
@@ -250,7 +303,7 @@ def dispatch_single_otp(identifier: str, channel: str) -> tuple[bool, str]:
         dispatched = _send_sms_twilio(identifier, otp_code)
 
     if not dispatched:
-        # Remove the stored token since delivery failed — don't leave a phantom token
+        # Remove the stored token since delivery failed - don't leave a phantom token
         try:
             rec = database.get_active_otp_token(identifier, channel)
             if rec:
@@ -273,7 +326,7 @@ def dispatch_single_otp(identifier: str, channel: str) -> tuple[bool, str]:
             return False, "Could not send the SMS verification code. Please try again later."
 
     return True, (
-        "Verification code sent to your email. Please check your inbox — "
+        "Verification code sent to your email. Please check your inbox - "
         "if you don't see it within a minute, check your Spam / Junk folder. "
         "The code expires in 5 minutes."
     )
@@ -368,7 +421,7 @@ def send_diagnosis_report_email(
         msg = MIMEMultipart()
         msg["From"] = f"Checkup Buddy Health Analytics <{user}>"
         msg["To"] = to_email
-        msg["Subject"] = f"Checkup Buddy Diagnostic Report — {disease_name} ({risk_level} Risk)"
+        msg["Subject"] = f"Checkup Buddy Diagnostic Report - {disease_name} ({risk_level} Risk)"
 
         body_text = (
             f"Dear {patient_name or 'Patient'},\n\n"
@@ -450,7 +503,7 @@ def run_smtp_diagnostic(test_recipient: str) -> dict:
             "CONFIGURATION ERROR: Set SMTP_USER and SMTP_APP_PASSWORD in the "
             "Render dashboard under Environment Variables."
         )
-        print("[SMTP Diagnostic] Credentials missing — SMTP_USER or SMTP_APP_PASSWORD not configured.")
+        print("[SMTP Diagnostic] Credentials missing - SMTP_USER or SMTP_APP_PASSWORD not configured.")
         return result
 
     result["credentials_present"] = True
@@ -477,7 +530,7 @@ def run_smtp_diagnostic(test_recipient: str) -> dict:
             "For Gmail, use a 16-character App Password (not your account password). "
             "Enable 2FA and create an App Password at myaccount.google.com/apppasswords."
         )
-        print("[SMTP Diagnostic] Authentication failed — wrong credentials.")
+        print("[SMTP Diagnostic] Authentication failed - wrong credentials.")
         server.quit()
         return result
     except Exception as e:
@@ -492,7 +545,7 @@ def run_smtp_diagnostic(test_recipient: str) -> dict:
         msg = MIMEMultipart("alternative")
         msg["From"] = user
         msg["To"] = test_recipient
-        msg["Subject"] = "Checkup Buddy — SMTP Diagnostic Test"
+        msg["Subject"] = "Checkup Buddy - SMTP Diagnostic Test"
         msg.attach(MIMEText(
             "This is an automated SMTP diagnostic test from Checkup Buddy.\n"
             "If you received this, email delivery is working correctly.\n\n"
