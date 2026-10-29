@@ -1,0 +1,138 @@
+% ==============================================================================
+% IEEE LATEX MATHEMATICAL FORMULATIONS
+% Project: Checkup Buddy (v2) — Multi-Disease Health Analytics
+% All equations verified against codebase source files and scikit-learn models.
+% ==============================================================================
+
+\subsection{Physiological Intake Derivations and Clinical Gating}
+Prior to diagnostic inference, patient demographic vitals and physiological markers are acquired and validated through a mandatory intake pipeline (\texttt{vitals\_intake.py}).
+
+\subsubsection{Body Mass Index (BMI)}
+Body Mass Index is computed from raw metric height and weight according to Quetelet's metric formula:
+\begin{equation}
+    \text{BMI} = \frac{m_{\text{kg}}}{\left(\frac{h_{\text{cm}}}{100}\right)^2} = \frac{m_{\text{kg}}}{h_{\text{m}}^2}
+    \label{eq:bmi}
+\end{equation}
+where $m_{\text{kg}} \in \mathbb{R}^+$ denotes total body mass in kilograms, and $h_{\text{cm}} \in \mathbb{R}^+$ denotes standing height in centimeters.
+
+\subsubsection{Automated Hemodynamic and Metabolic Thresholds}
+For downstream risk stratification in cardiovascular and cerebrovascular assessments (\texttt{modules/stroke.py} and \texttt{modules/heart.py}), deterministic threshold functions are evaluated:
+\begin{equation}
+    \text{HTN} = \mathbb{I}\left(\text{BP}_{\text{sys}} \ge 130 \lor \text{BP}_{\text{dia}} \ge 85\right)
+    \label{eq:htn}
+\end{equation}
+\begin{equation}
+    \text{FBS}_{>120} = \mathbb{I}\left(G_{\text{fasting}} > 120\text{ mg/dL}\right)
+    \label{eq:fbs}
+\end{equation}
+where $\text{BP}_{\text{sys}}$ is resting systolic arterial pressure (mmHg), $\text{BP}_{\text{dia}}$ is resting diastolic arterial pressure (mmHg), $G_{\text{fasting}}$ represents fasting blood glucose concentration (mg/dL), and $\mathbb{I}(\cdot)$ is the indicator function returning $1$ if the condition is satisfied and $0$ otherwise.
+
+\subsection{Feature Standardization (Z-Score Normalization)}
+Continuous feature distributions are centered and normalized using standard scaling (\texttt{StandardScaler} in \texttt{sklearn.preprocessing}):
+\begin{equation}
+    z_{ij} = \frac{x_{ij} - \mu_j}{\sigma_j}
+    \label{eq:standard_scaler}
+\end{equation}
+where $x_{ij}$ represents the raw value of feature $j$ for instance $i$. The sample mean $\mu_j$ and sample standard deviation $\sigma_j$ are computed strictly on the training partition $\mathcal{D}_{\text{train}}$ of size $N_{\text{train}}$:
+\begin{equation}
+    \mu_j = \frac{1}{N_{\text{train}}} \sum_{i=1}^{N_{\text{train}}} x_{ij}, \quad \sigma_j = \sqrt{\frac{1}{N_{\text{train}}} \sum_{i=1}^{N_{\text{train}}} (x_{ij} - \mu_j)^2}
+    \label{eq:scaler_params}
+\end{equation}
+The test partition $\mathcal{D}_{\text{test}}$ and real-time inference vectors are standardized using the precomputed parameters $(\mu_j, \sigma_j)$ to prevent information leakage.
+
+\subsection{Random Forest Classification Framework}
+Six of the seven diagnostic modules (Heart, Diabetes, Kidney, Liver, Stroke, Breast Cancer) utilize an ensemble of bootstrap-aggregated (bagged) classification and regression trees (\texttt{RandomForestClassifier}).
+
+\subsubsection{Splitting Criterion (Gini Impurity)}
+For any node $t$ containing a subset of samples with class distribution $p_k(t) = \frac{N_{t,k}}{N_t}$ for $k \in \{0, 1\}$, the node impurity is evaluated via the Gini index:
+\begin{equation}
+    I_G(t) = 1 - \sum_{k=0}^{1} p_k(t)^2 = 1 - \left(p_0(t)^2 + p_1(t)^2\right)
+    \label{eq:gini}
+\end{equation}
+A candidate split $\theta = (j, \tau)$ partitions node $t$ into left child $t_L$ and right child $t_R$ using threshold $\tau$ on feature $j$. The optimal split maximizes impurity reduction:
+\begin{equation}
+    \Delta I_G(\theta, t) = I_G(t) - \frac{N_L}{N_t} I_G(t_L) - \frac{N_R}{N_t} I_G(t_R)
+    \label{eq:split_gain}
+\end{equation}
+where $N_t = N_L + N_R$ represents the total sample weight at node $t$.
+
+\subsubsection{Balanced Class Weighting}
+For datasets exhibiting class imbalance (notably Liver Disease and Stroke Risk), sample weights $w_k$ are assigned inversely proportional to class frequencies:
+\begin{equation}
+    w_k = \frac{N_{\text{train}}}{K \cdot N_k}
+    \label{eq:class_weight}
+\end{equation}
+where $K = 2$ is the number of target classes, $N_{\text{train}}$ is the total number of training instances, and $N_k$ is the number of training instances in class $k \in \{0, 1\}$.
+
+\subsubsection{Ensemble Prediction and Probability Estimation}
+Given an ensemble of $B = 100$ decorrelated decision trees $\{T_b\}_{b=1}^B$, the estimated class-conditional probability of positive disease risk ($y = 1$) for a normalized feature vector $\mathbf{z}$ is given by:
+\begin{equation}
+    P(y = 1 \mid \mathbf{z}) = \frac{1}{B} \sum_{b=1}^{B} P_b(y = 1 \mid \mathbf{z})
+    \label{eq:ensemble_prob}
+\end{equation}
+where $P_b(y = 1 \mid \mathbf{z})$ is the fraction of positive training samples in the terminal leaf of tree $T_b$. The final binary risk classification $\hat{y}$ is determined by a standard Bayesian threshold:
+\begin{equation}
+    \hat{y} = \mathbb{I}\left(P(y = 1 \mid \mathbf{z}) \ge 0.5\right)
+    \label{eq:decision_rule}
+\end{equation}
+
+\subsubsection{Gini Feature Importance (Mean Decrease in Impurity)}
+The global importance $J(j)$ of feature $j$ across the forest ensemble is computed as the total normalized reduction in Gini impurity accumulated across all nodes $t$ where feature $j$ was selected as the splitting variable:
+\begin{equation}
+    J(j) = \frac{1}{B} \sum_{b=1}^{B} \sum_{t \in T_b: v(t) = j} \frac{N_t}{N_{\text{train}}} \Delta I_G(\theta_t, t)
+    \label{eq:feature_importance}
+\end{equation}
+subject to the normalization constraint $\sum_{j=1}^{D} J(j) = 1$, where $v(t)$ denotes the feature assigned to split node $t$.
+
+\subsection{Support Vector Machine (Parkinson's Vocal Dysphonia)}
+For the Parkinson's disease module, a Support Vector Classifier with a linear kernel (\texttt{SVC(kernel='linear', probability=True)}) is implemented on $D = 22$ normalized acoustic dysphonia features.
+
+\subsubsection{Primal Soft-Margin Optimization}
+The optimal separating hyperplane $\mathbf{w}^T \mathbf{z} + b = 0$ is obtained by solving the convex quadratic programming problem:
+\begin{equation}
+    \min_{\mathbf{w}, b, \boldsymbol{\xi}} \frac{1}{2} \|\mathbf{w}\|_2^2 + C \sum_{i=1}^{N_{\text{train}}} \xi_i
+    \label{eq:svm_primal}
+\end{equation}
+\begin{equation}
+    \text{subject to } y_i \left(\mathbf{w}^T \mathbf{z}_i + b\right) \ge 1 - \xi_i, \quad \xi_i \ge 0, \quad \forall i \in \{1, \dots, N_{\text{train}}\}
+    \label{eq:svm_constraints}
+\end{equation}
+where $y_i \in \{-1, +1\}$, penalty parameter $C = 1.0$, and $\xi_i$ are non-negative slack variables quantifying margin violations.
+
+\subsubsection{Platt Posterior Probability Calibration}
+To provide clinical risk confidence scores, uncalibrated linear decision values $f(\mathbf{z}) = \mathbf{w}^T \mathbf{z} + b$ are mapped to calibrated posterior probabilities via Platt scaling:
+\begin{equation}
+    P(y = 1 \mid \mathbf{z}) = \frac{1}{1 + \exp\left(A \cdot f(\mathbf{z}) + B\right)}
+    \label{eq:platt_scaling}
+\end{equation}
+where scalar parameters $A$ and $B$ are estimated through internal five-fold cross-validation by minimizing the negative log-likelihood over the training set.
+
+\subsection{Statistical Evaluation Metrics}
+Model performance across held-out test sets is quantitatively evaluated using the confusion matrix elements: True Positives ($TP$), True Negatives ($TN$), False Positives ($FP$), and False Negatives ($FN$).
+
+\begin{equation}
+    \text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}
+    \label{eq:accuracy}
+\end{equation}
+\begin{equation}
+    \text{Precision} = \frac{TP}{TP + FP}
+    \label{eq:precision}
+\end{equation}
+\begin{equation}
+    \text{Recall (Sensitivity)} = \frac{TP}{TP + FN}
+    \label{eq:recall}
+\end{equation}
+\begin{equation}
+    \text{Specificity} = \frac{TN}{TN + FP}
+    \label{eq:specificity}
+\end{equation}
+\begin{equation}
+    F_1\text{-Score} = \frac{2 \cdot \text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}} = \frac{2 TP}{2 TP + FP + FN}
+    \label{eq:f1}
+\end{equation}
+\begin{equation}
+    \text{ROC-AUC} = \int_{0}^{1} \text{TPR}(\text{FPR}) \, d(\text{FPR})
+    \label{eq:roc_auc}
+\end{equation}
+where $\text{TPR} = \frac{TP}{TP + FN}$ and $\text{FPR} = \frac{FP}{TN + FP}$.
+

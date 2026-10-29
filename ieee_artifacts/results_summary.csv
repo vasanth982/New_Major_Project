@@ -1,0 +1,8 @@
+Disease Module,Algorithm,Total Dataset N,Train N,Test N,Train Accuracy,Test Accuracy,Precision,Recall (Sensitivity),Specificity,F1-Score,ROC-AUC,True Negative (TN),False Positive (FP),False Negative (FN),True Positive (TP)
+Heart Disease,Random Forest,303,242,61,0.9835,0.8525,0.8,0.9697,0.7143,0.8767,0.9253,20,8,1,32
+Diabetes,Random Forest,768,614,154,0.8941,0.7403,0.6458,0.5741,0.83,0.6078,0.8141,83,17,23,31
+Parkinson's Disease,Linear SVC,195,156,39,0.9038,0.9487,0.9355,1.0,0.8,0.9667,0.9138,8,2,0,29
+Chronic Kidney Disease,Random Forest,400,320,80,1.0,0.9875,0.9804,1.0,0.9667,0.9901,1.0,29,1,0,50
+Liver Disease,Random Forest (Balanced),583,466,117,0.7618,0.7094,0.8657,0.6988,0.7353,0.7733,0.8079,25,9,25,58
+Stroke Risk,Random Forest (Balanced),5110,4088,1022,0.6832,0.683,0.113,0.8,0.677,0.198,0.84,658,314,10,40
+Breast Cancer Risk,Random Forest,569,455,114,0.9846,0.9386,0.9268,0.9048,0.9583,0.9157,0.9841,69,3,4,38

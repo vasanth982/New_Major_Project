@@ -1,0 +1,8 @@
+Disease Module,Total Dataset N,Raw Class 0 (Negative),Raw Class 1 (Positive),Raw Positive Prevalence (%),Held-out Test N,Test Class 0 (Negative),Test Class 1 (Positive),Test Positive Prevalence (%)
+Heart Disease,303,138,165,54.46,61,28,33,54.1
+Diabetes,768,500,268,34.9,154,100,54,35.06
+Parkinson's Disease,195,48,147,75.38,39,10,29,74.36
+Chronic Kidney Disease,400,150,250,62.5,80,30,50,62.5
+Liver Disease,583,167,416,71.36,117,34,83,70.94
+Stroke Risk,5110,4861,249,4.87,1022,972,50,4.89
+Breast Cancer Risk,569,357,212,37.26,114,72,42,36.84

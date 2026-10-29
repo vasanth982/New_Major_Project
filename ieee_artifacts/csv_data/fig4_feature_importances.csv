@@ -1,0 +1,42 @@
+Disease Module,Feature Name,Gini Importance (MDI)
+Heart Disease,age,0.06651356095076415
+Heart Disease,sex,0.028210446186163564
+Heart Disease,cp,0.1634109387978176
+Heart Disease,trestbps,0.06531560777760925
+Heart Disease,chol,0.07682868328071812
+Heart Disease,fbs,0.006543529503986354
+Heart Disease,restecg,0.019664722389260748
+Heart Disease,thalach,0.12059160139566837
+Heart Disease,exang,0.06726079550135208
+Heart Disease,oldpeak,0.1090727169102978
+Heart Disease,slope,0.06250699875679017
+Heart Disease,ca,0.09701018652166368
+Heart Disease,thal,0.1170702120279082
+Diabetes,Pregnancies,0.07365392533008985
+Diabetes,Glucose,0.34627570827387044
+Diabetes,BloodPressure,0.06034655377256343
+Diabetes,SkinThickness,0.05893383515992844
+Diabetes,Insulin,0.07565755582547865
+Diabetes,BMI,0.16833960154054164
+Diabetes,DiabetesPedigreeFunction,0.09655027614042318
+Diabetes,Age,0.12024254395710438
+Chronic Kidney Disease,age,0.008063740856798373
+Chronic Kidney Disease,bp,0.01147676073279021
+Chronic Kidney Disease,sg,0.12403076506123296
+Chronic Kidney Disease,al,0.07351925042356675
+Chronic Kidney Disease,su,0.007848715230242621
+Chronic Kidney Disease,bgr,0.035772518150869875
+Chronic Kidney Disease,bu,0.03754678165548611
+Chronic Kidney Disease,sc,0.1689749765896497
+Chronic Kidney Disease,hemo,0.2700379835446004
+Chronic Kidney Disease,pcv,0.262728507754763
+Breast Cancer Risk,mean radius,0.1336335102395287
+Breast Cancer Risk,mean texture,0.04798941030426225
+Breast Cancer Risk,mean perimeter,0.15752177683547872
+Breast Cancer Risk,mean area,0.14421045719797965
+Breast Cancer Risk,mean smoothness,0.02767866263111084
+Breast Cancer Risk,mean compactness,0.04991430618095793
+Breast Cancer Risk,mean concavity,0.11450914695684622
+Breast Cancer Risk,mean concave points,0.2965927801923045
+Breast Cancer Risk,mean symmetry,0.014937557415837712
+Breast Cancer Risk,mean fractal dimension,0.013012392045693466

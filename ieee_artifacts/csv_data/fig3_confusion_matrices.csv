@@ -1,0 +1,8 @@
+Disease Module,True Negative (TN),False Positive (FP),False Negative (FN),True Positive (TP),Total Test N
+Heart Disease,20,8,1,32,61
+Diabetes,83,17,23,31,154
+Parkinson's Disease,8,2,0,29,39
+Chronic Kidney Disease,29,1,0,50,80
+Liver Disease,25,9,25,58,117
+Stroke Risk,658,314,10,40,1022
+Breast Cancer Risk,69,3,4,38,114
