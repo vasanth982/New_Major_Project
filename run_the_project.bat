@@ -50,12 +50,12 @@ if defined VENV_DIR (
 
 echo.
 :: 3. Check and Install Requirements
-echo [2/3] Verifying dependencies from Requirements.txt...
+echo [2/3] Verifying dependencies from requirements.txt...
 set "REQ_FILE="
-if exist "Requirements.txt" (
-    set "REQ_FILE=Requirements.txt"
-) else if exist "requirements.txt" (
+if exist "requirements.txt" (
     set "REQ_FILE=requirements.txt"
+) else if exist "Requirements.txt" (
+    set "REQ_FILE=Requirements.txt"
 )
 
 if defined REQ_FILE (
