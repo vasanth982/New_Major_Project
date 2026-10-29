@@ -122,23 +122,63 @@ def _send_email_smtp(to_email: str, otp_code: str) -> bool:
         return False
 
     try:
-        msg = MIMEMultipart()
-        msg["From"] = f"Checkup Buddy <{smtp_user}>"
-        msg["To"] = to_email
-        msg["Subject"] = "Your Checkup Buddy Verification Code"
+        # ── Build a plain-text + HTML multipart/alternative email ─────────────
+        # Using multipart/alternative with both plain and HTML reduces spam scoring.
+        outer = MIMEMultipart("alternative")
+        outer["From"] = smtp_user          # plain address — avoids display-name encoding issues
+        outer["To"] = to_email
+        outer["Reply-To"] = smtp_user
+        outer["Subject"] = "Your Checkup Buddy Verification Code"
+        outer["X-Mailer"] = "Checkup Buddy v2"
 
-        body = (
+        plain_body = (
             f"Hello,\n\n"
-            f"Your Checkup Buddy verification code is: {otp_code}\n\n"
-            f"This code will expire in 5 minutes. If you did not request this, please ignore this email.\n\n"
-            f"— Checkup Buddy Health Analytics"
+            f"Your Checkup Buddy one-time verification code is:\n\n"
+            f"    {otp_code}\n\n"
+            f"This code expires in 5 minutes.\n"
+            f"If you did not request this, please ignore this email.\n\n"
+            f"-- Checkup Buddy Health Analytics\n"
+            f"This is an automated message. Please do not reply.\n"
         )
-        msg.attach(MIMEText(body, "plain"))
 
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+        html_body = f"""\
+<html>
+  <body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:30px;">
+    <div style="max-width:480px;margin:auto;background:#fff;border-radius:10px;
+                padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+      <h2 style="color:#0D9488;margin-top:0;">Checkup Buddy</h2>
+      <p style="font-size:15px;color:#333;">Hello,</p>
+      <p style="font-size:15px;color:#333;">
+        Your one-time verification code is:
+      </p>
+      <div style="text-align:center;margin:24px 0;">
+        <span style="font-size:36px;font-weight:bold;letter-spacing:10px;
+                     color:#0D9488;background:#f0fdf4;padding:14px 28px;
+                     border-radius:8px;border:2px dashed #0D9488;">
+          {otp_code}
+        </span>
+      </div>
+      <p style="font-size:13px;color:#555;">
+        This code expires in <strong>5 minutes</strong>.<br>
+        If you did not request this, please ignore this email.
+      </p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p style="font-size:11px;color:#999;text-align:center;">
+        Checkup Buddy Health Analytics &mdash; Automated message, do not reply.
+      </p>
+    </div>
+  </body>
+</html>"""
+
+        outer.attach(MIMEText(plain_body, "plain", "utf-8"))
+        outer.attach(MIMEText(html_body, "html", "utf-8"))
+
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=15)
+        server.ehlo()
         server.starttls()
+        server.ehlo()
         server.login(smtp_user, clean_password)
-        server.sendmail(smtp_user, [to_email], msg.as_string())
+        server.sendmail(smtp_user, [to_email], outer.as_string())
         server.quit()
         print(f"[OTP Service] Email dispatched successfully to {to_email}")
         return True
@@ -214,9 +254,17 @@ def dispatch_single_otp(identifier: str, channel: str) -> tuple[bool, str]:
         print("=" * 60 + "\n")
         # Still return success=True so the user sees the generic inbox-check message.
         # The actual code is visible in the server terminal only.
-        return True, "Verification code sent to your email. Please check your inbox (and spam folder)."
+        return True, (
+            "Verification code sent. Please check your inbox — "
+            "if you don't see it within a minute, check your Spam / Junk folder. "
+            "The code expires in 5 minutes."
+        )
 
-    return True, "Verification code sent to your email. Please check your inbox (and spam folder)."
+    return True, (
+        "Verification code sent to your email. Please check your inbox — "
+        "if you don't see it within a minute, check your Spam / Junk folder. "
+        "The code expires in 5 minutes."
+    )
 
 
 def dispatch_dual_otps(email: str, mobile: str) -> dict:

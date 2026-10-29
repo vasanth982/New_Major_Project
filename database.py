@@ -478,10 +478,16 @@ def get_aggregate_stats(db_path=DB_PATH):
 # ---------------- OTP PERSISTENCE FUNCTIONS ----------------
 
 def store_otp_token(identifier, channel, token_hash, expires_at_iso, db_path=DB_PATH):
-    """Stores an encrypted OTP token record for an identifier and channel."""
+    """Stores a fresh OTP token, replacing any previous tokens for this identifier+channel."""
     conn = get_db_connection(db_path)
     cursor = conn.cursor()
     now = datetime.now().isoformat()
+    # Delete all previous (stale/expired) tokens for this identifier+channel first,
+    # so the user is always verifying against the latest code they received.
+    cursor.execute(
+        "DELETE FROM otp_tokens WHERE LOWER(identifier) = LOWER(?) AND channel = ?",
+        (identifier.strip(), channel)
+    )
     cursor.execute("""
         INSERT INTO otp_tokens (identifier, channel, token_hash, attempts, max_attempts, expires_at, created_at)
         VALUES (?, ?, ?, 0, 3, ?, ?)
